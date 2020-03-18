@@ -46,6 +46,7 @@ module OmniAuth
       args [:client_id, :tenant]
       option :client_id, nil
       option :tenant, nil
+      option :nonce_max_count, 10
 
       # instead of hard coding client_id and tenant, you may pass a class that
       # determines these values at runtime to support multiple tenants
@@ -254,7 +255,25 @@ module OmniAuth
       #
       # @return String
       def new_nonce
-        session['omniauth-azure-activedirectory.nonce'] = SecureRandom.uuid
+        session['omniauth-azure-activedirectory.nonce'] ||= []
+        nonce = SecureRandom.uuid
+        session['omniauth-azure-activedirectory.nonce'] << nonce
+
+        if session['omniauth-azure-activedirectory.nonce'].size > options.nonce_max_count
+          session['omniauth-azure-activedirectory.nonce'].shift
+        end
+
+        nonce
+      end
+
+      ##
+      # Check and remove nonce from session array. In case if nil returned
+      # nonce wasn't found
+      # @return String or nil
+      def check_nonce(nonce)
+        return unless session['omniauth-azure-activedirectory.nonce']
+
+        session['omniauth-azure-activedirectory.nonce'].delete(nonce)
       end
 
       ##
@@ -272,15 +291,6 @@ module OmniAuth
       def openid_config_url
         options[:openid_config_url] ||
           "https://login.windows.net/#{tenant}/.well-known/openid-configuration"
-      end
-
-      ##
-      # Returns the most recent nonce for the session and deletes it from the
-      # session.
-      #
-      # @return String
-      def read_nonce
-        session.delete('omniauth-azure-activedirectory.nonce')
       end
 
       ##
@@ -378,7 +388,7 @@ module OmniAuth
               fail JWT::VerificationError, 'Key has no info for verification'
             end
           end
-        return jwt_claims, jwt_header if jwt_claims['nonce'] == read_nonce
+        return jwt_claims, jwt_header if check_nonce(jwt_claims['nonce'])
         fail JWT::DecodeError, 'Returned nonce did not match.'
       end
 
