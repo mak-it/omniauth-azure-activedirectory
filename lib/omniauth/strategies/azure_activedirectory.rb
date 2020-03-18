@@ -255,12 +255,12 @@ module OmniAuth
       #
       # @return String
       def new_nonce
-        session['omniauth-azure-activedirectory.nonce'] ||= []
+        session['omniauth-azure-activedirectory.nonces'] ||= []
         nonce = SecureRandom.uuid
-        session['omniauth-azure-activedirectory.nonce'] << nonce
+        session['omniauth-azure-activedirectory.nonces'] << nonce
 
-        if session['omniauth-azure-activedirectory.nonce'].size > options.nonce_max_count
-          session['omniauth-azure-activedirectory.nonce'].shift
+        if session['omniauth-azure-activedirectory.nonces'].size > options.nonce_max_count
+          session['omniauth-azure-activedirectory.nonces'].shift
         end
 
         nonce
@@ -271,9 +271,9 @@ module OmniAuth
       # nonce wasn't found
       # @return String or nil
       def check_nonce(nonce)
-        return unless session['omniauth-azure-activedirectory.nonce']
+        return unless session['omniauth-azure-activedirectory.nonces']
 
-        session['omniauth-azure-activedirectory.nonce'].delete(nonce)
+        session['omniauth-azure-activedirectory.nonces'].delete(nonce)
       end
 
       ##
