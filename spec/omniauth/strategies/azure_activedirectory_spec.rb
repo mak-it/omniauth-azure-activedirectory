@@ -38,7 +38,7 @@ describe OmniAuth::Strategies::AzureActiveDirectory do
   let(:issuer) { 'https://sts.windows.net/bunch-of-random-chars' }
   let(:kid) { 'abc123' }
   let(:name) { 'John Smith' }
-  let(:nonce) { 'my nonce' }
+  let(:nonces) { ['my nonce'] }
   let(:session_state) { 'session state' }
   let(:auth_endpoint_host) { 'authorize.com' }
 
@@ -52,7 +52,7 @@ describe OmniAuth::Strategies::AzureActiveDirectory do
   let(:openid_config_response) { "{\"issuer\":\"#{issuer}\",\"authorization_endpoint\":\"http://#{auth_endpoint_host}\",\"jwks_uri\":\"https://login.windows.net/common/discovery/keys\"}" }
   let(:keys_response) { "{\"keys\":[{\"kid\":\"#{kid}\",\"x5c\":[\"#{x5c}\"]}]}" }
 
-  let(:env) { { 'rack.session' => { 'omniauth-azure-activedirectory.nonce' => nonce } } }
+  let(:env) { { 'rack.session' => { 'omniauth-azure-activedirectory.nonces' => nonces } } }
 
   before(:each) do
     stub_request(:get, "https://login.windows.net/#{tenant}/.well-known/openid-configuration")
@@ -196,29 +196,23 @@ describe OmniAuth::Strategies::AzureActiveDirectory do
     end
   end
 
-  describe '#read_nonce' do
-    let(:strategy) { described_class.new(app, client_id, tenant) }
+  describe '#new_nonce' do
+    let(:strategy) { described_class.new(app, client_id, tenant, nonce_max_count: 2) }
     let(:env) { { 'rack.session' => {} } }
     before(:each) { strategy.call!(env) }
-    subject { strategy.send(:read_nonce) }
 
-    context 'before a nonce is set' do
-      it { is_expected.to be nil }
-    end
+    it 'generate mutiple nonces configured by `nonce_max_count`' do
+      allow(SecureRandom).to receive(:uuid).and_return('n1')
+      expect(strategy.send(:new_nonce)).to eq('n1')
+      expect(strategy.session).to eq({'omniauth-azure-activedirectory.nonces'=>['n1']})
 
-    context 'after a nonce is set' do
-      before(:each) { @nonce = strategy.send(:new_nonce) }
-      it 'should match' do
-        expect(subject).to eq @nonce
-      end
-    end
+      allow(SecureRandom).to receive(:uuid).and_return('n2')
+      expect(strategy.send(:new_nonce)).to eq('n2')
+      expect(strategy.session).to eq({'omniauth-azure-activedirectory.nonces'=>['n1', 'n2']})
 
-    context 'twice in a row' do
-      before(:each) do
-        strategy.send(:new_nonce)
-        strategy.send(:read_nonce)
-      end
-      it { is_expected.to be nil }
+      allow(SecureRandom).to receive(:uuid).and_return('n3')
+      expect(strategy.send(:new_nonce)).to eq('n3')
+      expect(strategy.session).to eq({'omniauth-azure-activedirectory.nonces'=>['n2', 'n3']})
     end
   end
 end
